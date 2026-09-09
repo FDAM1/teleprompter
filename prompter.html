@@ -1,0 +1,2185 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0B0B0C">
+<title>Prompter</title>
+<style>
+/* ==========================================================================
+   Prompter - teleprompter PWA
+   Chrome escuro "estudio", acento ambar, alvos de toque generosos.
+   ========================================================================== */
+
+:root{
+  --bg:#0B0B0C;
+  --surface:#141618;
+  --surface-2:#1B1E22;
+  --surface-3:#23272B;
+  --line:#26292E;
+  --text:#F2F2F0;
+  --muted:#8A9096;
+  --faint:#575D64;
+  --accent:#F6C87A;
+  --accent-dim:#3A2F1A;
+  --accent-ink:#1A1206;
+  --danger:#F26D6D;
+  --track:#23272B;
+
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+
+  --ui:Inter,"Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;
+  --serif:Newsreader,"Iowan Old Style",Georgia,"Times New Roman",serif;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--ui);
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+  overscroll-behavior:none;
+}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer}
+input,textarea,select{font:inherit;color:inherit}
+::selection{background:var(--accent);color:var(--accent-ink)}
+
+/* ---------- telas ---------- */
+.screen{position:fixed;inset:0;display:none;flex-direction:column;overflow:hidden}
+.screen.is-active{display:flex}
+
+.icon-btn{
+  width:44px;height:44px;display:grid;place-items:center;
+  background:transparent;border:0;border-radius:12px;color:var(--muted);
+  transition:background .15s,color .15s;
+}
+.icon-btn:hover{background:var(--surface-2);color:var(--text)}
+.icon-btn.is-on{color:var(--accent)}
+.icon-btn svg{width:22px;height:22px;display:block}
+
+/* ==========================================================================
+   HOME
+   ========================================================================== */
+.screen--home{overflow-y:auto;display:none}
+.screen--home.is-active{display:block}
+.home-wrap{width:100%;max-width:820px;margin:0 auto;padding-bottom:150px}
+.home-top{display:flex;justify-content:flex-end;gap:2px;padding:calc(var(--safe-t) + 12px) 12px 0}
+.greeting{font-family:var(--serif);font-size:clamp(34px,9vw,46px);font-weight:500;letter-spacing:-.01em;margin:14px 22px 0}
+.greeting-sub{color:var(--muted);font-size:15px;margin:8px 22px 24px}
+
+.search{
+  display:flex;align-items:center;gap:12px;margin:0 18px;
+  background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:0 16px;height:56px;
+}
+.search svg{width:20px;height:20px;color:var(--faint);flex:none}
+.search input{flex:1;min-width:0;background:none;border:0;outline:none;font-size:16px}
+.search input::placeholder{color:var(--faint)}
+
+.section-label{font-size:11px;letter-spacing:.16em;color:var(--faint);font-weight:600;margin:28px 22px 12px}
+
+.script-list{padding:0 18px}
+.card{
+  display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+  background:var(--surface);border:1px solid var(--line);border-radius:20px;
+  padding:14px;margin-bottom:12px;transition:border-color .15s;
+}
+.card:hover{border-color:#33383E}
+.card-body{display:flex;align-items:center;gap:14px;flex:1;min-width:0;background:none;border:0;padding:0;text-align:left}
+.card-thumb{width:54px;height:54px;flex:none;border-radius:14px;background:var(--surface-2);display:grid;place-items:center;color:var(--faint)}
+.card-thumb svg{width:22px;height:22px}
+.card.is-pinned .card-thumb{color:var(--accent);background:var(--accent-dim)}
+.card-main{flex:1;min-width:0}
+.card-title{font-size:16.5px;font-weight:600;margin:0 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-preview{color:var(--muted);font-size:13.5px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-meta{color:var(--faint);font-size:12.5px;margin-top:9px}
+.card-play{
+  width:46px;height:46px;flex:none;border-radius:50%;border:0;background:var(--surface-2);
+  color:var(--text);display:grid;place-items:center;transition:background .15s,transform .12s,color .15s;
+}
+.card-play:hover{background:var(--accent);color:var(--accent-ink)}
+.card-play:active{transform:scale(.94)}
+.card-play svg{width:18px;height:18px;margin-left:2px}
+
+.empty{padding:56px 30px;text-align:center;color:var(--faint);font-size:14px;line-height:1.6}
+.empty strong{display:block;color:var(--muted);font-size:16px;font-weight:600;margin-bottom:8px}
+
+.fab{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--safe-b) + 24px);
+  display:flex;align-items:center;gap:10px;
+  background:var(--accent);color:var(--accent-ink);border:0;border-radius:999px;
+  padding:0 30px;height:60px;font-size:16.5px;font-weight:600;
+  box-shadow:0 12px 34px rgba(0,0,0,.5);
+}
+.fab:active{transform:translateX(-50%) scale(.97)}
+.fab svg{width:20px;height:20px}
+
+/* ==========================================================================
+   EDITOR
+   ========================================================================== */
+.editor-top{display:flex;align-items:center;gap:2px;padding:calc(var(--safe-t) + 10px) 10px 0}
+.spacer{flex:1}
+.editor-body{flex:1;overflow-y:auto;width:100%;max-width:820px;margin:0 auto;padding:8px 22px 20px}
+.editor-title{
+  display:block;width:100%;background:none;border:0;outline:none;
+  font-family:var(--serif);font-size:30px;font-weight:500;padding:14px 0 10px;
+}
+.editor-title::placeholder{color:#4A4F55}
+.editor-text{
+  display:block;width:100%;min-height:52vh;background:none;border:0;outline:none;resize:none;
+  font-size:17px;line-height:1.62;padding:0 0 40px;font-family:var(--ui);
+}
+.editor-text::placeholder{color:#4A4F55}
+.editor-foot{
+  border-top:1px solid var(--line);background:var(--bg);
+  padding:12px 22px calc(var(--safe-b) + 14px);
+}
+.editor-foot-inner{width:100%;max-width:820px;margin:0 auto}
+.editor-meta{color:var(--faint);font-size:13px;text-align:right;margin-bottom:12px}
+.btn-primary{
+  display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:58px;
+  background:var(--accent);color:var(--accent-ink);border:0;border-radius:18px;font-size:16.5px;font-weight:600;
+}
+.btn-primary:active{transform:scale(.99)}
+.btn-primary svg{width:18px;height:18px}
+.btn-ghost{
+  display:flex;align-items:center;gap:14px;width:100%;height:54px;
+  background:var(--surface-2);color:var(--text);border:0;border-radius:16px;font-size:15.5px;font-weight:500;
+  padding:0 18px;
+}
+.btn-ghost svg{width:19px;height:19px;color:var(--muted);flex:none}
+.btn-ghost.is-danger{color:var(--danger)}
+.btn-ghost.is-danger svg{color:var(--danger)}
+
+/* ==========================================================================
+   PROMPTER
+   ========================================================================== */
+.screen--prompter{background:var(--stage-bg);color:var(--stage-text)}
+.screen--prompter[data-theme="studio"]  {--stage-bg:#0B0B0C;--stage-text:#F5F5F3;--stage-dim:#63686E;--stage-read:#9AA0A6}
+.screen--prompter[data-theme="penumbra"]{--stage-bg:#000000;--stage-text:#EFAF52;--stage-dim:#6A4C1F;--stage-read:#8E672A}
+.screen--prompter[data-theme="paper"]   {--stage-bg:#F7F5F1;--stage-text:#16130F;--stage-dim:#8C867D;--stage-read:#78726A;--track:#DFDAD2}
+.screen--prompter[data-theme="contrast"]{--stage-bg:#000000;--stage-text:#FFFFFF;--stage-dim:#6E6E6E;--stage-read:#B4B4B4}
+
+.pr-top{
+  position:absolute;top:0;left:0;right:0;z-index:6;
+  display:flex;align-items:center;gap:8px;
+  padding:calc(var(--safe-t) + 10px) 12px 14px;
+  background:linear-gradient(to bottom,var(--stage-bg) 55%,transparent);
+  transition:opacity .25s,transform .25s;
+}
+.pr-title{flex:1;min-width:0;font-size:14.5px;color:var(--stage-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr-top .icon-btn{color:var(--stage-dim)}
+.pr-top .icon-btn:hover{background:rgba(128,128,128,.14);color:var(--stage-text)}
+.pr-top .icon-btn.is-on{color:var(--accent)}
+
+.stage{position:relative;flex:1;overflow:hidden;touch-action:manipulation}
+.stage-inner{position:absolute;inset:0;overflow:hidden}
+.stage-inner.mirror-h{transform:scaleX(-1)}
+.stage-inner.mirror-v{transform:scaleY(-1)}
+.stage-inner.mirror-h.mirror-v{transform:scale(-1,-1)}
+
+.doc{
+  position:absolute;top:0;left:0;right:0;
+  will-change:transform;
+  padding-left:var(--pad);padding-right:var(--pad);
+  font-size:var(--fs);line-height:var(--lh);text-align:var(--align);
+  font-family:var(--stage-font);
+  letter-spacing:-.005em;
+  overflow-wrap:break-word;
+}
+.doc p{margin:0 0 .5em}
+.s{color:var(--stage-dim);transition:color .3s ease}
+.s.is-read{color:var(--stage-read)}
+.s.is-current{color:var(--stage-text)}
+
+.guide{
+  position:absolute;left:0;right:0;top:var(--guide-y);height:0;z-index:3;pointer-events:none;
+  border-top:1.5px solid var(--accent);opacity:.6;
+}
+.guide::before,.guide::after{
+  content:"";position:absolute;top:-5px;width:9px;height:10px;background:var(--accent);border-radius:2px;
+}
+.guide::before{left:0}
+.guide::after{right:0}
+
+.focus-mask{
+  position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:linear-gradient(to bottom,
+    var(--stage-bg) 0,
+    var(--stage-bg) calc(var(--guide-y) - 120px),
+    transparent calc(var(--guide-y) - 34px),
+    transparent calc(var(--guide-y) + 66px),
+    var(--stage-bg) calc(var(--guide-y) + 150px),
+    var(--stage-bg) 100%);
+  opacity:0;transition:opacity .25s;
+}
+.focus-mask.is-on{opacity:.93}
+
+.edge-fade{
+  position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(to bottom,var(--stage-bg),transparent 13%,transparent 87%,var(--stage-bg));
+}
+
+.countdown{
+  position:absolute;inset:0;z-index:8;display:grid;place-items:center;
+  background:rgba(0,0,0,.5);
+  font-size:120px;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums;
+}
+.countdown span{animation:pop .95s ease-out}
+@keyframes pop{from{transform:scale(.55);opacity:0}35%{opacity:1}to{transform:scale(1.18);opacity:.2}}
+
+.voice-chip{
+  position:absolute;z-index:5;left:50%;transform:translateX(-50%);
+  top:calc(var(--safe-t) + 60px);
+  display:flex;align-items:center;gap:9px;
+  background:rgba(20,22,24,.86);border:1px solid var(--line);border-radius:999px;
+  padding:7px 14px 7px 11px;font-size:12.5px;color:var(--muted);white-space:nowrap;
+}
+.screen--prompter[data-theme="paper"] .voice-chip{background:rgba(255,255,255,.92);border-color:#DCD7CF;color:#6B655C}
+.voice-chip.is-live{color:var(--accent)}
+.vu{width:34px;height:6px;border-radius:3px;background:var(--track);overflow:hidden;flex:none}
+.vu i{display:block;height:100%;width:0%;background:var(--accent);transition:width .08s linear}
+
+/* ---------- controles do prompter ---------- */
+.pr-controls{
+  position:relative;z-index:6;
+  background:var(--stage-bg);
+  padding:14px 20px calc(var(--safe-b) + 16px);
+  transition:opacity .25s,transform .25s;
+}
+.screen--prompter[data-theme="paper"] .pr-controls{border-top:1px solid #E4DFD7}
+.pr-controls-inner{width:100%;max-width:760px;margin:0 auto}
+
+.pr-top.is-hidden,.pr-controls.is-hidden{opacity:0;pointer-events:none}
+.pr-top.is-hidden{transform:translateY(-12px)}
+.pr-controls.is-hidden{transform:translateY(14px)}
+
+.progress{position:relative;height:22px;display:flex;align-items:center;cursor:pointer;touch-action:none}
+.progress-track{position:absolute;left:0;right:0;height:3px;border-radius:2px;background:var(--surface-3)}
+.screen--prompter[data-theme="paper"] .progress-track{background:#DFDAD2}
+.progress-fill{position:absolute;left:0;height:3px;border-radius:2px;background:var(--accent);width:0}
+.progress-knob{position:absolute;width:13px;height:13px;border-radius:50%;background:var(--accent);left:0;transform:translateX(-50%)}
+.times{display:flex;justify-content:space-between;font-size:12.5px;color:var(--stage-dim);margin-top:2px;font-variant-numeric:tabular-nums}
+.times b{font-weight:400;color:var(--stage-text)}
+
+.pr-row{display:flex;align-items:center;justify-content:center;margin:16px 0 6px;position:relative;min-height:78px}
+.pr-row .round{
+  width:52px;height:52px;border-radius:50%;border:0;background:var(--surface-2);color:var(--muted);
+  display:grid;place-items:center;position:absolute;top:13px;
+}
+.screen--prompter[data-theme="paper"] .pr-row .round{background:#E8E3DB;color:#6B655C}
+.pr-row .round.left{left:0}
+.pr-row .round.right{right:0}
+.pr-row .round svg{width:21px;height:21px}
+.pr-row .round.is-on{color:var(--accent)}
+.play{
+  width:78px;height:78px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);
+  display:grid;place-items:center;box-shadow:0 8px 26px rgba(246,200,122,.2);
+}
+.play:active{transform:scale(.95)}
+.play svg{width:30px;height:30px}
+.play .ico-pause{display:none}
+.play.is-playing .ico-play{display:none}
+.play.is-playing .ico-pause{display:block}
+
+.speed-row{display:flex;align-items:center;gap:16px;margin-top:10px}
+.speed-row .step{
+  width:46px;height:46px;flex:none;border-radius:50%;border:0;background:var(--surface-2);color:var(--stage-text);
+  font-size:22px;line-height:1;display:grid;place-items:center;
+}
+.screen--prompter[data-theme="paper"] .speed-row .step{background:#E8E3DB}
+.speed-mid{flex:1;min-width:0;text-align:center}
+.speed-val{font-size:13.5px;color:var(--accent);font-variant-numeric:tabular-nums;display:block;margin-bottom:4px}
+
+.kbd-hint{display:none;text-align:center;color:var(--stage-dim);font-size:11.5px;margin-top:12px}
+.kbd-hint kbd{background:var(--surface-2);border-radius:5px;padding:2px 6px;font-family:inherit;font-size:11px}
+.screen--prompter[data-theme="paper"] .kbd-hint kbd{background:#E8E3DB}
+@media(min-width:900px) and (pointer:fine){.kbd-hint{display:block}}
+
+/* ---------- sliders ---------- */
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;outline:none;margin:0;
+}
+input[type=range]::-webkit-slider-runnable-track{
+  height:4px;border-radius:3px;
+  background:linear-gradient(to right,var(--accent) 0,var(--accent) var(--fill,50%),var(--track) var(--fill,50%),var(--track) 100%);
+}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;height:19px;border-radius:50%;background:var(--accent);margin-top:-7.5px;border:0}
+input[type=range]::-moz-range-track{height:4px;border-radius:3px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:3px;background:var(--accent)}
+input[type=range]::-moz-range-thumb{width:19px;height:19px;border:0;border-radius:50%;background:var(--accent)}
+
+/* ==========================================================================
+   BOTTOM SHEET
+   ========================================================================== */
+.sheet-backdrop{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.5);animation:fade .2s}
+@keyframes fade{from{opacity:0}}
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:21;
+  max-height:86vh;display:flex;flex-direction:column;
+  background:var(--surface);color:var(--text);font-family:var(--ui);
+  border-top-left-radius:26px;border-top-right-radius:26px;
+  border-top:1px solid var(--line);
+  animation:slideUp .26s cubic-bezier(.2,.8,.25,1);
+}
+@keyframes slideUp{from{transform:translateY(30px);opacity:0}}
+.sheet-grip{width:44px;height:4px;border-radius:3px;background:#3A3F45;margin:12px auto 0;flex:none}
+.sheet-head{padding:16px 24px 4px;flex:none}
+.sheet-head h2{font-size:23px;font-weight:600;margin:0}
+.sheet-head p{color:var(--muted);font-size:14px;margin:6px 0 0}
+.sheet-body{overflow-y:auto;padding:8px 24px calc(var(--safe-b) + 24px);-webkit-overflow-scrolling:touch}
+
+@media(min-width:760px){
+  .sheet{left:auto;right:22px;bottom:22px;width:520px;border-radius:24px;border:1px solid var(--line);max-height:82vh}
+}
+
+.grp-label{font-size:11px;letter-spacing:.16em;color:var(--faint);font-weight:600;margin:24px 0 4px}
+.grp-label:first-child{margin-top:12px}
+
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:52px}
+.row-label{font-size:16px;flex:1;min-width:0}
+.row-label small{display:block;color:var(--muted);font-size:13px;margin-top:3px;font-weight:400;line-height:1.4}
+.row-val{color:var(--text);font-size:15px;font-variant-numeric:tabular-nums;flex:none}
+.field{padding:2px 0 10px}
+
+.seg{display:flex;background:var(--surface-2);border-radius:14px;padding:4px;gap:4px;flex:none}
+.seg button{
+  border:0;background:transparent;border-radius:11px;padding:9px 16px;font-size:14.5px;color:var(--muted);
+  display:grid;place-items:center;min-width:46px;transition:background .15s,color .15s;
+}
+.seg button.is-on{background:var(--surface-3);color:var(--text)}
+.seg button svg{width:19px;height:19px}
+.seg--wide{width:100%;margin:10px 0 4px}
+.seg--wide button{flex:1;padding:12px 6px;font-size:13.5px;min-width:0}
+
+.toggle{
+  width:56px;height:31px;flex:none;border-radius:999px;border:0;background:#484E55;position:relative;transition:background .18s;
+}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:50%;background:#C9CED4;transition:transform .18s,background .18s}
+.toggle.is-on{background:var(--accent)}
+.toggle.is-on::after{transform:translateX(25px);background:#1A1206}
+
+.swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0 4px}
+.swatch{border:2px solid transparent;border-radius:18px;background:none;padding:0;text-align:center}
+.swatch i{
+  position:relative;display:grid;place-items:center;height:78px;border-radius:14px;border:1px solid var(--line);
+  font-style:normal;font-size:22px;font-weight:600;
+}
+.swatch span{display:block;font-size:12.5px;color:var(--muted);margin-top:8px}
+.swatch.is-on{border-color:var(--accent)}
+.swatch.is-on span{color:var(--text)}
+.sw-studio i{background:#0B0B0C;color:#F5F5F3}
+.sw-penumbra i{background:#000;color:#EFAF52}
+.sw-paper i{background:#F7F5F1;color:#16130F;border-color:#EDE8E0}
+.sw-contrast i{background:#000;color:#fff}
+.swatch .chk{display:none;position:absolute;inset:0;place-items:center}
+.swatch.is-on .chk{display:grid}
+.swatch.is-on .lbl{opacity:0}
+.chk b{width:36px;height:36px;border-radius:50%;background:var(--accent);display:grid;place-items:center;color:var(--accent-ink)}
+.chk svg{width:18px;height:18px}
+
+.select{
+  background:var(--surface-2);border:1px solid var(--line);border-radius:12px;
+  padding:10px 12px;font-size:14.5px;outline:none;flex:none;max-width:52%;
+}
+.note{color:var(--muted);font-size:13px;line-height:1.55;background:var(--surface-2);border-radius:12px;padding:12px 14px;margin-top:10px}
+.note.is-warn{color:#EFC490;background:#241D10}
+.link-btn{background:none;border:0;color:var(--muted);font-size:14.5px;padding:18px 0;width:100%;text-align:center;margin-top:8px}
+.link-btn:hover{color:var(--text)}
+
+.menu-list{display:flex;flex-direction:column;gap:10px;padding-top:6px}
+
+.toast{
+  position:fixed;left:50%;bottom:calc(var(--safe-b) + 100px);transform:translateX(-50%);z-index:60;
+  background:var(--surface-3);color:var(--text);border-radius:12px;padding:12px 18px;font-size:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);animation:fade .18s;max-width:88vw;text-align:center;
+}
+
+/* em telas largas a linha não pode ficar longa demais para os olhos */
+@media(min-width:1000px){
+  .doc{max-width:1000px;margin-left:auto;margin-right:auto}
+}
+@media(min-width:900px){.fab{bottom:34px}.pr-controls{padding-bottom:22px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+</style>
+</head>
+<body>
+<!-- ícones reutilizáveis -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6c0 .8.9 1.3 1.5.8l10-6.8c.6-.4.6-1.2 0-1.6l-10-6.8c-.7-.4-1.5 0-1.5.8z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.2" height="14" rx="1.4"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.4"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24" fill="currentColor"><rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="M17 11l4.1-2.8c.4-.3 1 0 1 .5v6.6c0 .5-.6.8-1 .5L17 13z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 12h2M10 12h10M4 17h8M16 17h4"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="14" cy="17" r="2"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="5" y="10.5" width="14" height="10" rx="3"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/></symbol>
+  <symbol id="i-restart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5v5h5"/><path d="M4.6 14a7.6 7.6 0 103-8.4L4 9"/></symbol>
+  <symbol id="i-align-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 11h9M4 16h13"/></symbol>
+  <symbol id="i-align-center" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M7.5 11h9M5.5 16h13"/></symbol>
+  <symbol id="i-align-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M11 11h9M7 16h13"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1 6 3.5 3.5H6.5L10 9 9 3z"/><path d="M12 12.5V21"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16v4z"/><path d="M14.5 5.5l4 4"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 5.5h-9a2.5 2.5 0 00-2.5 2.5v9" stroke-linecap="round"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7h15M9.5 7V5h5v2M6.5 7l1 12.5h9L17.5 7"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8.5L13.5 3z"/><path d="M13.5 3v5.5H19"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11.5l5 5 5-5M4.5 20h15"/></symbol>
+  <symbol id="i-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0013 0M12 18v3"/></symbol>
+</svg>
+
+<!-- ======================= HOME ======================= -->
+<section class="screen screen--home is-active" id="screen-home">
+  <div class="home-wrap">
+    <div class="home-top">
+      <button class="icon-btn" id="btn-backup" aria-label="Backup dos roteiros"><svg><use href="#i-down"/></svg></button>
+      <button class="icon-btn" id="btn-home-settings" aria-label="Ajustes de leitura"><svg><use href="#i-sliders"/></svg></button>
+    </div>
+
+    <h1 class="greeting" id="greeting">Boa noite</h1>
+    <p class="greeting-sub">Seu estúdio está pronto.</p>
+
+    <label class="search">
+      <svg><use href="#i-search"/></svg>
+      <input id="search" type="search" placeholder="Buscar em seus roteiros" autocomplete="off">
+    </label>
+
+    <h2 class="section-label" id="list-label">RECENTES</h2>
+    <div class="script-list" id="script-list"></div>
+    <div class="empty" id="home-empty" hidden>
+      <strong>Nenhum roteiro ainda</strong>
+      Toque em “Novo roteiro” para escrever, colar<br>ou abrir um arquivo de texto.
+    </div>
+  </div>
+  <button class="fab" id="btn-new"><svg><use href="#i-plus"/></svg> Novo roteiro</button>
+</section>
+
+<!-- ======================= EDITOR ======================= -->
+<section class="screen screen--editor" id="screen-editor">
+  <div class="editor-top">
+    <button class="icon-btn" id="btn-editor-back" aria-label="Voltar"><svg><use href="#i-back"/></svg></button>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="btn-editor-menu" aria-label="Mais opções"><svg><use href="#i-more"/></svg></button>
+  </div>
+  <div class="editor-body">
+    <input class="editor-title" id="editor-title" placeholder="Dê um nome a este roteiro" autocomplete="off">
+    <textarea class="editor-text" id="editor-text" placeholder="Escreva ou cole seu texto aqui…" spellcheck="true"></textarea>
+  </div>
+  <div class="editor-foot">
+    <div class="editor-foot-inner">
+      <div class="editor-meta"><span id="editor-count">0 palavras</span> · <span id="editor-time">0 min</span></div>
+      <button class="btn-primary" id="btn-present"><svg><use href="#i-play"/></svg> Apresentar</button>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= PROMPTER ======================= -->
+<section class="screen screen--prompter" id="screen-prompter" data-theme="studio">
+  <div class="pr-top" id="pr-top">
+    <button class="icon-btn" id="btn-pr-close" aria-label="Sair"><svg><use href="#i-close"/></svg></button>
+    <span class="pr-title" id="pr-title">Roteiro sem título</span>
+    <button class="icon-btn" id="btn-pr-edit" aria-label="Editar o roteiro"><svg><use href="#i-edit"/></svg></button>
+    <button class="icon-btn" id="btn-fullscreen" aria-label="Tela cheia"><svg><use href="#i-full"/></svg></button>
+    <button class="icon-btn" id="btn-wake" aria-label="Manter a tela acesa"><svg><use href="#i-lock"/></svg></button>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="stage-inner" id="stage-inner">
+      <div class="doc" id="doc"></div>
+    </div>
+    <div class="edge-fade"></div>
+    <div class="focus-mask" id="focus-mask"></div>
+    <div class="guide" id="guide"></div>
+    <div class="voice-chip" id="voice-chip" hidden>
+      <svg style="width:14px;height:14px"><use href="#i-mic"/></svg>
+      <span id="voice-chip-text">Ouvindo…</span>
+      <span class="vu"><i id="vu-bar"></i></span>
+    </div>
+    <div class="countdown" id="countdown" hidden><span id="countdown-n">3</span></div>
+  </div>
+
+  <div class="pr-controls" id="pr-controls">
+    <div class="pr-controls-inner">
+      <div class="progress" id="progress">
+        <div class="progress-track"></div>
+        <div class="progress-fill" id="progress-fill"></div>
+        <div class="progress-knob" id="progress-knob"></div>
+      </div>
+      <div class="times"><b id="t-elapsed">−0:00</b><span id="t-total">0:00</span></div>
+
+      <div class="pr-row">
+        <button class="round left" id="btn-restart" aria-label="Voltar ao início"><svg><use href="#i-restart"/></svg></button>
+        <button class="play" id="btn-play" aria-label="Reproduzir">
+          <svg class="ico-play"><use href="#i-play"/></svg>
+          <svg class="ico-pause"><use href="#i-pause"/></svg>
+        </button>
+        <button class="round right" id="btn-settings" aria-label="Ajustes de leitura"><svg><use href="#i-sliders"/></svg></button>
+      </div>
+
+      <div class="speed-row">
+        <button class="step" id="spd-minus" aria-label="Diminuir ritmo">−</button>
+        <div class="speed-mid">
+          <span class="speed-val" id="spd-val">130 ppm</span>
+          <input type="range" id="spd-range" min="60" max="280" step="5" value="130" aria-label="Palavras por minuto">
+        </div>
+        <button class="step" id="spd-plus" aria-label="Aumentar ritmo">+</button>
+      </div>
+
+      <div class="kbd-hint">
+        <kbd>espaço</kbd> play/pause · <kbd>↑</kbd><kbd>↓</kbd> ritmo · <kbd>←</kbd><kbd>→</kbd> avançar · <kbd>E</kbd> espelho · <kbd>Esc</kbd> sair
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="overlay-root"></div>
+<script>
+/* ---- store.js ---- */
+/* store.js — persistência (localStorage), roteiros e ajustes de leitura */
+window.TP = window.TP || {};
+
+(function (TP) {
+  'use strict';
+
+  var K_SCRIPTS = 'tp.scripts.v1';
+  var K_SETTINGS = 'tp.settings.v1';
+
+  var DEFAULTS = {
+    wpm: 130,
+    fontSize: 38,
+    lineHeight: 1.45,
+    margin: 5,            // % de recuo lateral
+    align: 'center',      // left | center | right
+    font: 'sans',         // sans | serif
+    theme: 'studio',      // studio | penumbra | paper | contrast
+    guideLine: true,
+    guidePos: 42,         // % da altura da tela
+    focusMode: false,
+    countdown: true,
+    mirrorH: false,
+    mirrorV: false,
+    voiceMode: 'off',     // off | vad | follow
+    voiceLang: 'pt-BR',
+    keepAwake: true
+  };
+
+  function readJSON(key, fallback) {
+    try {
+      var raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (e) { return fallback; }
+  }
+  function writeJSON(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* modo privado */ }
+  }
+
+  /* ---------------- ajustes ---------------- */
+  var settings = Object.assign({}, DEFAULTS, readJSON(K_SETTINGS, {}));
+
+  TP.settings = settings;
+  TP.defaults = DEFAULTS;
+  TP.saveSettings = function () { writeJSON(K_SETTINGS, settings); };
+  TP.resetSettings = function () {
+    Object.keys(DEFAULTS).forEach(function (k) { settings[k] = DEFAULTS[k]; });
+    TP.saveSettings();
+  };
+
+  /* ---------------- roteiros ---------------- */
+  var scripts = readJSON(K_SCRIPTS, null);
+  if (!scripts) scripts = [seed()];
+
+  function seed() {
+    return {
+      id: uid(),
+      title: 'Bem-vindo ao Prompter',
+      text:
+        'Este é o seu primeiro roteiro. Toque em Apresentar para ver o texto correr na velocidade que você escolher.\n\n' +
+        'No botão de ajustes você muda o tamanho da letra, as margens, o tema e liga o espelhamento — horizontal para vidro de teleprompter, vertical para quem monta o aparelho de cabeça para baixo.\n\n' +
+        'Em Ritmo, experimente “Seguir a minha fala”: o texto passa a andar no compasso da sua voz, acelerando quando você corre e parando quando você respira.\n\n' +
+        'Quando terminar, apague este texto e cole o seu.',
+      pinned: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+  }
+
+  function uid() {
+    return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function persist() { writeJSON(K_SCRIPTS, scripts); }
+
+  TP.scripts = {
+    all: function () {
+      return scripts.slice().sort(function (a, b) {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return b.updatedAt - a.updatedAt;
+      });
+    },
+    get: function (id) {
+      for (var i = 0; i < scripts.length; i++) if (scripts[i].id === id) return scripts[i];
+      return null;
+    },
+    create: function (data) {
+      var s = Object.assign({
+        id: uid(), title: '', text: '', pinned: false,
+        createdAt: Date.now(), updatedAt: Date.now()
+      }, data || {});
+      scripts.push(s);
+      persist();
+      return s;
+    },
+    update: function (id, patch) {
+      var s = TP.scripts.get(id);
+      if (!s) return null;
+      Object.assign(s, patch, { updatedAt: Date.now() });
+      persist();
+      return s;
+    },
+    remove: function (id) {
+      scripts = scripts.filter(function (s) { return s.id !== id; });
+      persist();
+    },
+    duplicate: function (id) {
+      var s = TP.scripts.get(id);
+      if (!s) return null;
+      return TP.scripts.create({
+        title: (s.title || 'Roteiro sem título') + ' (cópia)',
+        text: s.text
+      });
+    },
+    replaceAll: function (list) {
+      scripts = list;
+      persist();
+    }
+  };
+
+  /* ---------------- utilidades de texto ---------------- */
+  TP.countWords = function (text) {
+    var m = (text || '').trim().match(/[^\s]+/g);
+    return m ? m.length : 0;
+  };
+
+  TP.readTime = function (words, wpm) {
+    return words / Math.max(1, wpm || settings.wpm) * 60; // segundos
+  };
+
+  TP.fmtClock = function (sec) {
+    sec = Math.max(0, Math.round(sec));
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  };
+
+  TP.fmtDuration = function (sec) {
+    if (sec < 60) return 'menos de 1 min';
+    return Math.round(sec / 60) + ' min de leitura';
+  };
+
+  TP.escapeHTML = function (s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+
+  /* normaliza para comparação de fala: minúsculas, sem acento, sem pontuação */
+  TP.normalizeWord = function (w) {
+    return String(w)
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+  };
+
+  TP.clamp = function (v, a, b) { return v < a ? a : (v > b ? b : v); };
+
+  /* Salvar um arquivo.
+     Fora do navegador comum (por exemplo dentro do visualizador de artifacts)
+     o link de download é inerte; nesse caso pedimos ao hospedeiro que salve. */
+  var downloads = null;
+  if (window.claude && typeof window.claude.use === 'function') {
+    window.claude.use('downloads').then(function (ns) { downloads = ns; }, function () {});
+  }
+
+  TP.saveFile = function (filename, text) {
+    if (downloads) {
+      downloads.save({ filename: filename, data: text }).then(function () {
+        TP.toast('Arquivo salvo.');
+      }, function (err) {
+        if (!err || err.code !== 'declined') TP.toast('Não foi possível salvar o arquivo.');
+      });
+      return;
+    }
+    var url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  };
+
+  TP.safeName = function (name, ext) {
+    var base = String(name || 'roteiro').replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 60);
+    return (base || 'roteiro') + ext;
+  };
+
+  TP.toast = function (msg) {
+    var old = document.querySelector('.toast');
+    if (old) old.remove();
+    var el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = msg;
+    document.body.appendChild(el);
+    clearTimeout(TP._toastT);
+    TP._toastT = setTimeout(function () { el.remove(); }, 2600);
+  };
+
+})(window.TP);
+
+/* ---- voice.js ---- */
+/* voice.js — microfone: detecção de fala (VAD) e reconhecimento (seguir o texto)
+ *
+ * Dois modos:
+ *   'vad'    -> só escuta a energia do som. O texto anda enquanto você fala e
+ *               para quando você silencia. Funciona em qualquer navegador com microfone.
+ *   'follow' -> reconhecimento de fala. Casa as palavras ditas com o roteiro e
+ *               entrega ao prompter a posição real da leitura, para ele acelerar
+ *               ou frear sozinho. Requer Web Speech API (Chrome/Edge, Android).
+ */
+window.TP = window.TP || {};
+
+(function (TP) {
+  'use strict';
+
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  var voice = {
+    mode: 'off',
+    active: false,
+    speaking: false,
+    meter: false,      // o medidor de volume está aberto?
+    level: 0,          // 0..1, para o medidor
+    supported: {
+      mic: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+      recognition: !!SR
+    },
+    onTokens: null,    // callback(tokensArray) no modo 'follow'
+    onState: null,     // callback(estado) para a interface
+    error: null
+  };
+
+  var stream = null, ctx = null, analyser = null, buf = null, rafId = 0;
+  var rec = null, recWanted = false, curResultIdx = -1, consumed = 0;
+  var noiseFloor = 0.008, calibFrames = 0, lastLoud = 0;
+
+  /* ---------------- ciclo de vida ---------------- */
+
+  voice.start = function (mode, lang) {
+    voice.stop();
+    voice.mode = mode;
+    voice.error = null;
+    if (mode === 'off') return Promise.resolve(true);
+
+    return openMic()
+      .then(function () {
+        if (mode === 'follow') startRecognition(lang || 'pt-BR');
+        voice.active = true;
+        emit();
+        return true;
+      })
+      .catch(function (err) {
+        voice.error = err && err.name === 'NotAllowedError'
+          ? 'Permissão de microfone negada.'
+          : 'Não foi possível acessar o microfone.';
+        voice.mode = 'off';
+        voice.active = false;
+        emit();
+        return false;
+      });
+  };
+
+  function closeMeter() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    if (ctx) { try { ctx.close(); } catch (e) {} ctx = null; }
+    analyser = null;
+    voice.meter = false;
+    voice.level = 0;
+  }
+
+  voice.stop = function () {
+    recWanted = false;
+    if (rec) { try { rec.onend = null; rec.stop(); } catch (e) {} rec = null; }
+    closeMeter();
+    voice.active = false;
+    voice.speaking = false;
+    voice.level = 0;
+    calibFrames = 0;
+    noiseFloor = 0.008;
+    emit();
+  };
+
+  function emit() { if (voice.onState) voice.onState(voice); }
+
+  /* ---------------- medidor de energia (VAD) ---------------- */
+
+  function openMic() {
+    if (!voice.supported.mic) return Promise.reject(new Error('sem microfone'));
+    return navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    }).then(function (s) {
+      stream = s;
+      var AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC();
+      if (ctx.state === 'suspended') ctx.resume();
+      var src = ctx.createMediaStreamSource(stream);
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.6;
+      src.connect(analyser);
+      buf = new Float32Array(analyser.fftSize);
+      voice.meter = true;
+      loop();
+    });
+  }
+
+  function loop() {
+    rafId = requestAnimationFrame(loop);
+    if (!analyser) return;
+
+    analyser.getFloatTimeDomainData(buf);
+    var sum = 0;
+    for (var i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    var rms = Math.sqrt(sum / buf.length);
+
+    // calibra o ruído de fundo nos primeiros ~40 quadros
+    if (calibFrames < 40) {
+      calibFrames++;
+      noiseFloor = noiseFloor * 0.85 + rms * 0.15;
+      return;
+    }
+    // o piso acompanha lentamente o ambiente quando ninguém fala
+    if (!voice.speaking) noiseFloor = noiseFloor * 0.995 + rms * 0.005;
+
+    var threshold = Math.max(noiseFloor * 2.6, 0.012);
+    var now = performance.now();
+    if (rms > threshold) lastLoud = now;
+
+    // 320 ms de tolerância: pausas curtas entre palavras não param o texto
+    voice.speaking = (now - lastLoud) < 320;
+    voice.level = TP.clamp((rms - noiseFloor) / 0.09, 0, 1);
+  }
+
+  /* ---------------- reconhecimento de fala ---------------- */
+
+  function startRecognition(lang) {
+    if (!SR) return;
+    recWanted = true;
+    rec = new SR();
+    rec.lang = lang;
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+
+    rec.onresult = function (ev) {
+      for (var i = ev.resultIndex; i < ev.results.length; i++) {
+        var r = ev.results[i];
+        if (i !== curResultIdx) { curResultIdx = i; consumed = 0; }
+
+        var toks = tokenize(r[0].transcript);
+        if (toks.length > consumed) {
+          var fresh = toks.slice(consumed);
+          consumed = toks.length;
+          if (voice.onTokens) voice.onTokens(fresh);
+        }
+        if (r.isFinal) { curResultIdx = -1; consumed = 0; }
+      }
+    };
+
+    rec.onerror = function (ev) {
+      if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+        voice.error = 'Permissão de microfone negada para o reconhecimento.';
+        recWanted = false;
+        emit();
+      }
+      // Em alguns aparelhos Android o reconhecimento não consegue o microfone
+      // enquanto o medidor de volume o mantém aberto. Nesse caso o medidor cede.
+      if (ev.error === 'audio-capture' && stream) {
+        closeMeter();
+        setTimeout(function () {
+          if (recWanted && rec) { try { rec.start(); } catch (e) {} }
+        }, 300);
+      }
+      // 'no-speech' e 'aborted' são normais: o onend reinicia
+    };
+
+    // o Chrome encerra sozinho de tempos em tempos; religamos enquanto estiver ativo
+    rec.onend = function () {
+      if (!recWanted) return;
+      setTimeout(function () {
+        if (!recWanted || !rec) return;
+        try { rec.start(); } catch (e) {}
+      }, 250);
+    };
+
+    try { rec.start(); } catch (e) {}
+  }
+
+  function tokenize(text) {
+    var out = [];
+    var parts = String(text).split(/\s+/);
+    for (var i = 0; i < parts.length; i++) {
+      var w = TP.normalizeWord(parts[i]);
+      if (w) out.push(w);
+    }
+    return out;
+  }
+
+  TP.voice = voice;
+
+})(window.TP);
+
+/* ---- prompter.js ---- */
+/* prompter.js — motor de rolagem, medição do texto e sincronia com a fala */
+window.TP = window.TP || {};
+
+(function (TP) {
+  'use strict';
+
+  var S = TP.settings;
+
+  var el = {};       // preenchido em init()
+  var P = {
+    script: null,
+    words: [],       // palavras normalizadas, para casar com a fala
+    wordMid: null,   // Float64Array: centro vertical de cada palavra (px no documento)
+    wordEls: [],
+    sentEls: [],
+    sentTop: [],
+    sentBottom: [],
+    curSent: -1,
+
+    scroll: 0,
+    max: 0,
+    stageH: 0,
+    guideY: 0,
+    pxPerSec: 0,
+    duration: 0,
+
+    playing: false,
+    vel: 0,
+    lastTs: 0,
+    raf: 0,
+
+    cursor: -1,        // índice da última palavra reconhecida
+    speechTarget: 0,   // posição de rolagem que a fala pede
+    lastMatch: 0,
+    measured: false
+  };
+
+  TP.prompter = P;
+
+  /* ==================================================================
+     construção do documento
+     ================================================================== */
+
+  P.load = function (script) {
+    P.script = script;
+    var text = (script.text || '').replace(/\r\n?/g, '\n');
+
+    var words = [];
+    var html = '';
+    var paragraphs = text.split(/\n/);
+    var si = 0, wi = 0;
+
+    for (var p = 0; p < paragraphs.length; p++) {
+      var para = paragraphs[p].trim();
+      if (!para) continue;
+      html += '<p>';
+      var sentences = para.match(/[^.!?…]+[.!?…]*\s*/g) || [para];
+      for (var s = 0; s < sentences.length; s++) {
+        var sent = sentences[s];
+        if (!sent.trim()) continue;
+        html += '<span class="s" data-si="' + si + '">';
+        var toks = sent.trim().split(/\s+/);
+        for (var t = 0; t < toks.length; t++) {
+          var n = TP.normalizeWord(toks[t]);
+          if (n) {
+            html += '<span class="w" data-wi="' + wi + '">' + TP.escapeHTML(toks[t]) + '</span> ';
+            words.push(n);
+            wi++;
+          } else {
+            html += TP.escapeHTML(toks[t]) + ' ';
+          }
+        }
+        html += '</span>';
+        si++;
+      }
+      html += '</p>';
+    }
+
+    el.doc.innerHTML = html || '<p><span class="s is-current">Roteiro vazio.</span></p>';
+    P.words = words;
+    P.sentEls = Array.prototype.slice.call(el.doc.querySelectorAll('.s'));
+    P.wordEls = Array.prototype.slice.call(el.doc.querySelectorAll('.w'));
+    P.curSent = -1;
+    P.reset();
+    P.applySettings();
+    P.measure();
+  };
+
+  P.reset = function () {
+    P.scroll = 0;
+    P.vel = 0;
+    P.cursor = -1;
+    P.speechTarget = 0;
+    P.lastMatch = 0;
+  };
+
+  /* ==================================================================
+     aparência + medidas
+     ================================================================== */
+
+  P.applySettings = function () {
+    var scr = el.screen;
+    scr.dataset.theme = S.theme;
+
+    el.doc.style.setProperty('--fs', S.fontSize + 'px');
+    el.doc.style.setProperty('--lh', S.lineHeight);
+    el.doc.style.setProperty('--pad', S.margin + '%');
+    el.doc.style.setProperty('--align', S.align);
+    el.doc.style.setProperty('--stage-font', S.font === 'serif' ? 'var(--serif)' : 'var(--ui)');
+
+    el.inner.classList.toggle('mirror-h', !!S.mirrorH);
+    el.inner.classList.toggle('mirror-v', !!S.mirrorV);
+    el.guide.hidden = !S.guideLine;
+    el.mask.classList.toggle('is-on', !!S.focusMode);
+
+    document.getElementById('btn-wake').classList.toggle('is-on', !!S.keepAwake);
+  };
+
+  /* Mede alturas, limites de frase e o centro de cada palavra.
+     Chamada em toda mudança de layout (fonte, margem, rotação, teclado). */
+  P.measure = function () {
+    P.stageH = el.stage.clientHeight;
+    P.guideY = Math.round(P.stageH * (S.guidePos / 100));
+    el.screen.style.setProperty('--guide-y', P.guideY + 'px');
+
+    el.doc.style.paddingTop = P.guideY + 'px';
+    el.doc.style.paddingBottom = (P.stageH - P.guideY) + 'px';
+
+    var prev = el.doc.style.transform;
+    el.doc.style.transform = 'translate3d(0,0,0)';
+
+    var docTop = el.doc.getBoundingClientRect().top;
+    P.max = Math.max(0, el.doc.offsetHeight - P.stageH);
+
+    P.sentTop = new Array(P.sentEls.length);
+    P.sentBottom = new Array(P.sentEls.length);
+    for (var i = 0; i < P.sentEls.length; i++) {
+      var r = P.sentEls[i].getBoundingClientRect();
+      P.sentTop[i] = r.top - docTop;
+      P.sentBottom[i] = r.bottom - docTop;
+    }
+
+    // as posições por palavra só interessam ao modo "seguir a fala"
+    if (S.voiceMode === 'follow') {
+      P.wordMid = new Float64Array(P.wordEls.length);
+      for (var w = 0; w < P.wordEls.length; w++) {
+        var wr = P.wordEls[w].getBoundingClientRect();
+        P.wordMid[w] = (wr.top + wr.bottom) / 2 - docTop;
+      }
+      P.measured = true;
+    } else {
+      P.measured = false;
+    }
+
+    el.doc.style.transform = prev;
+
+    P.computePace();
+    P.scroll = TP.clamp(P.scroll, 0, P.max);
+    if (P.cursor >= 0 && P.wordMid) P.speechTarget = P.wordScroll(P.cursor);
+    P.render(true);
+  };
+
+  P.computePace = function () {
+    var n = P.words.length;
+    P.duration = n / Math.max(30, S.wpm) * 60;
+    P.pxPerSec = P.duration > 0 ? P.max / P.duration : 0;
+  };
+
+  P.wordScroll = function (i) {
+    if (!P.wordMid || i < 0 || i >= P.wordMid.length) return P.scroll;
+    return TP.clamp(P.wordMid[i] - P.guideY, 0, P.max);
+  };
+
+  /* ==================================================================
+     reprodução
+     ================================================================== */
+
+  /* Idempotente de propósito: se o app voltou de segundo plano, a cadeia de
+     requestAnimationFrame pode ter sido descartada pelo navegador. Reagendamos
+     sempre, em vez de confiar no estado anterior. */
+  P.play = function () {
+    var was = P.playing;
+    if (P.scroll >= P.max - 0.5) P.scroll = 0;
+    P.playing = true;
+    P.lastTs = 0;
+    cancelAnimationFrame(P.raf);
+    P.raf = requestAnimationFrame(P.tick);
+    if (!was && P.onPlayState) P.onPlayState(true);
+  };
+
+  P.pause = function () {
+    if (!P.playing) return;
+    P.playing = false;
+    P.vel = 0;
+    cancelAnimationFrame(P.raf);
+    if (P.onPlayState) P.onPlayState(false);
+  };
+
+  P.toggle = function () { P.playing ? P.pause() : P.play(); };
+
+  P.seekRatio = function (r) {
+    P.scroll = TP.clamp(r, 0, 1) * P.max;
+    P.syncCursorToScroll();
+    P.render(true);
+  };
+
+  P.nudgeSeconds = function (sec) {
+    var px = (P.pxPerSec || 0) * sec;
+    P.scroll = TP.clamp(P.scroll + px, 0, P.max);
+    P.syncCursorToScroll();
+    P.render(true);
+  };
+
+  P.restart = function () {
+    P.reset();
+    P.render(true);
+  };
+
+  /* Depois de um salto manual, o cursor da fala precisa acompanhar,
+     senão o modo "seguir" tentaria voltar para onde estava. */
+  P.syncCursorToScroll = function () {
+    P.speechTarget = P.scroll;
+    if (!P.wordMid || !P.wordMid.length) { P.cursor = -1; return; }
+    var y = P.scroll + P.guideY, lo = 0, hi = P.wordMid.length - 1, best = 0;
+    while (lo <= hi) {
+      var mid = (lo + hi) >> 1;
+      if (P.wordMid[mid] <= y) { best = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    P.cursor = best;
+  };
+
+  P.tick = function (ts) {
+    if (!P.playing) return;
+    P.raf = requestAnimationFrame(P.tick);
+
+    if (!P.lastTs) P.lastTs = ts;
+    var dt = Math.min(0.05, (ts - P.lastTs) / 1000);
+    P.lastTs = ts;
+
+    var base = P.pxPerSec;
+    var target = base;
+    var mode = S.voiceMode;
+    var v = TP.voice;
+
+    if (mode === 'vad' && v.active) {
+      target = v.speaking ? base : 0;
+    } else if (mode === 'follow' && v.active) {
+      if (!P.lastMatch) {
+        target = 0;                                  // ainda não ouviu nada: espera
+      } else if (performance.now() - P.lastMatch > 4000) {
+        target = 0;                                  // parou de falar: segura o texto
+      } else {
+        var err = P.speechTarget - P.scroll;          // >0: a fala está adiante
+        target = err * 1.5;
+        if (err > 0) target += base * 0.1;            // avanço mínimo enquanto fala
+        target = TP.clamp(target, 0, base * 3.2);
+      }
+    }
+
+    // suaviza para não dar solavanco
+    var k = Math.min(1, dt * (mode === 'off' ? 12 : 6));
+    P.vel += (target - P.vel) * k;
+
+    P.scroll += P.vel * dt;
+    if (P.scroll >= P.max) {
+      P.scroll = P.max;
+      P.render(true);
+      P.pause();
+      if (P.onEnd) P.onEnd();
+      return;
+    }
+    P.render(false);
+  };
+
+  /* ==================================================================
+     desenho
+     ================================================================== */
+
+  var lastHiScroll = -1e9;
+
+  P.render = function (force) {
+    el.doc.style.transform = 'translate3d(0,' + (-P.scroll).toFixed(2) + 'px,0)';
+
+    if (force || Math.abs(P.scroll - lastHiScroll) > 6) {
+      lastHiScroll = P.scroll;
+      P.highlight();
+      if (P.onProgress) {
+        var ratio = P.max > 0 ? P.scroll / P.max : 0;
+        P.onProgress(ratio, ratio * P.duration, P.duration);
+      }
+    }
+  };
+
+  P.highlight = function () {
+    if (!P.sentEls.length) return;
+    var y = P.scroll + P.guideY;
+    var lo = 0, hi = P.sentEls.length - 1, idx = 0;
+    while (lo <= hi) {
+      var mid = (lo + hi) >> 1;
+      if (P.sentTop[mid] <= y) { idx = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    if (idx === P.curSent) return;
+
+    if (P.curSent >= 0 && P.sentEls[P.curSent]) {
+      P.sentEls[P.curSent].classList.remove('is-current');
+      P.sentEls[P.curSent].classList.add('is-read');
+    }
+    // ao voltar, limpa o que ficou marcado como lido
+    for (var i = idx; i < P.sentEls.length; i++) {
+      if (!P.sentEls[i].classList.contains('is-read')) break;
+      P.sentEls[i].classList.remove('is-read');
+    }
+    for (var j = 0; j < idx; j++) {
+      var c = P.sentEls[j].classList;
+      if (!c.contains('is-read')) { c.add('is-read'); c.remove('is-current'); }
+    }
+    P.sentEls[idx].classList.add('is-current');
+    P.sentEls[idx].classList.remove('is-read');
+    P.curSent = idx;
+  };
+
+  /* ==================================================================
+     casamento com a fala
+     ================================================================== */
+
+  var WINDOW = 45;   // quantas palavras à frente procuramos
+  var BACK = 4;      // pequena tolerância para trás (repetições)
+
+  P.onTokens = function (tokens) {
+    if (!P.words.length) return;
+    if (!P.measured) {                 // o usuário ligou "seguir" com o texto já montado
+      P.measure();
+      if (!P.measured) return;
+    }
+
+    var c = P.cursor, moved = false;
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i];
+      if (t.length < 2) continue;
+      var from = Math.max(0, c - BACK);
+      var to = Math.min(P.words.length, c + 1 + WINDOW);
+      for (var k = from; k < to; k++) {
+        if (k <= c && k > c - BACK) continue;
+        if (wordsMatch(P.words[k], t)) { c = k; moved = true; break; }
+      }
+    }
+
+    if (moved && c > P.cursor) {
+      P.cursor = c;
+      P.speechTarget = P.wordScroll(c);
+      P.lastMatch = performance.now();
+    } else if (moved) {
+      P.lastMatch = performance.now();
+    }
+  };
+
+  function wordsMatch(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (a.length >= 5 && b.length >= 5 && Math.abs(a.length - b.length) <= 3) {
+      return a.slice(0, 4) === b.slice(0, 4);        // plural, conjugação, ruído no fim
+    }
+    return false;
+  }
+
+  /* ==================================================================
+     init
+     ================================================================== */
+
+  P.init = function (nodes) {
+    el = nodes;
+    TP.voice.onTokens = P.onTokens;
+  };
+
+})(window.TP);
+
+/* ---- sheets.js ---- */
+/* sheets.js — folhas inferiores: ajustes de leitura e menus de ação */
+window.TP = window.TP || {};
+
+(function (TP) {
+  'use strict';
+
+  var S = TP.settings;
+  var root = null;
+  var current = null;
+
+  function ensureRoot() {
+    if (!root) root = document.getElementById('overlay-root');
+    return root;
+  }
+
+  function close() {
+    if (!current) return;
+    var c = current;
+    current = null;
+    c.remove();
+    document.removeEventListener('keydown', onEsc, true);
+  }
+  function onEsc(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); close(); }
+  }
+
+  function open(inner) {
+    close();
+    var wrap = document.createElement('div');
+    wrap.innerHTML =
+      '<div class="sheet-backdrop"></div>' +
+      '<aside class="sheet" role="dialog" aria-modal="true">' +
+      '<div class="sheet-grip"></div>' + inner + '</aside>';
+    var frag = document.createElement('div');
+    frag.appendChild(wrap);
+    ensureRoot().appendChild(wrap);
+    current = wrap;
+    wrap.querySelector('.sheet-backdrop').addEventListener('click', close);
+    document.addEventListener('keydown', onEsc, true);
+    return wrap;
+  }
+
+  function fill(range) {
+    var min = +range.min, max = +range.max, v = +range.value;
+    range.style.setProperty('--fill', ((v - min) / (max - min) * 100) + '%');
+  }
+
+  function icon(id, cls) {
+    return '<svg' + (cls ? ' class="' + cls + '"' : '') + '><use href="#' + id + '"/></svg>';
+  }
+
+  /* ------------------------------------------------------------------
+     Ajustes de leitura
+     ------------------------------------------------------------------ */
+  TP.openSettings = function (onChange) {
+    var v = TP.voice;
+    var noFollow = !v.supported.recognition;
+    var noMic = !v.supported.mic;
+
+    var html =
+      '<div class="sheet-head">' +
+        '<h2>Ajustes de leitura</h2>' +
+        '<p>As mudanças aparecem no texto na hora.</p>' +
+      '</div>' +
+      '<div class="sheet-body">' +
+
+      '<div class="grp-label">RITMO</div>' +
+      row('Palavras por minuto', 'wpm-val', S.wpm + ' ppm') +
+      slider('wpm', 60, 280, 5, S.wpm) +
+
+      '<div class="row"><div class="row-label">Velocidade pela voz' +
+        '<small>Deixe o texto andar no compasso da sua fala.</small></div></div>' +
+      '<div class="seg seg--wide" data-seg="voiceMode">' +
+        segBtn('voiceMode', 'off', 'Desligado', S.voiceMode === 'off') +
+        segBtn('voiceMode', 'vad', 'Detectar fala', S.voiceMode === 'vad', noMic) +
+        segBtn('voiceMode', 'follow', 'Seguir o texto', S.voiceMode === 'follow', noFollow) +
+      '</div>' +
+      voiceNote(S.voiceMode, noFollow, noMic) +
+      (S.voiceMode === 'follow' ?
+        '<div class="row"><div class="row-label">Idioma da fala</div>' +
+        '<select class="select" data-select="voiceLang">' +
+          opt('pt-BR', 'Português (Brasil)') + opt('pt-PT', 'Português (Portugal)') +
+          opt('en-US', 'Inglês (EUA)') + opt('es-ES', 'Espanhol') +
+        '</select></div>' : '') +
+
+      '<div class="grp-label">PÁGINA</div>' +
+      row('Tamanho do texto', 'fontSize-val', S.fontSize) +
+      slider('fontSize', 18, 110, 1, S.fontSize) +
+      row('Entrelinha', 'lineHeight-val', fmt2(S.lineHeight)) +
+      slider('lineHeight', 1, 2.4, 0.05, S.lineHeight) +
+      row('Margens', 'margin-val', S.margin) +
+      slider('margin', 0, 30, 1, S.margin) +
+
+      '<div class="row"><div class="row-label">Alinhamento</div>' +
+        '<div class="seg" data-seg="align">' +
+          segBtn('align', 'left', icon('i-align-left'), S.align === 'left') +
+          segBtn('align', 'center', icon('i-align-center'), S.align === 'center') +
+          segBtn('align', 'right', icon('i-align-right'), S.align === 'right') +
+        '</div></div>' +
+
+      '<div class="row"><div class="row-label">Tipografia</div>' +
+        '<div class="seg" data-seg="font">' +
+          segBtn('font', 'sans', 'Inter', S.font === 'sans') +
+          segBtn('font', 'serif', 'Newsreader', S.font === 'serif') +
+        '</div></div>' +
+
+      '<div class="grp-label">ESTÚDIO</div>' +
+      '<div class="row"><div class="row-label">Combinação</div></div>' +
+      '<div class="swatches" data-seg="theme">' +
+        swatch('studio', 'Estúdio') + swatch('penumbra', 'Penumbra') +
+        swatch('paper', 'Papel') + swatch('contrast', 'Alto contraste') +
+      '</div>' +
+
+      toggleRow('guideLine', 'Linha guia', 'Marca onde os olhos devem pousar.') +
+      row('Altura da linha guia', 'guidePos-val', S.guidePos + '%') +
+      slider('guidePos', 15, 75, 1, S.guidePos) +
+      toggleRow('focusMode', 'Modo foco', 'Apaga o texto fora da linha de leitura.') +
+      toggleRow('countdown', 'Contagem regressiva', 'Três segundos antes de o texto correr.') +
+      toggleRow('mirrorH', 'Espelho horizontal', 'Para vidro de teleprompter.') +
+      toggleRow('mirrorV', 'Espelho vertical', 'Para o aparelho montado de cabeça para baixo.') +
+      toggleRow('keepAwake', 'Manter a tela acesa', 'Enquanto você estiver apresentando.') +
+
+      '<button class="link-btn" id="reset-defaults">Restaurar padrões</button>' +
+      '</div>';
+
+    var wrap = open(html);
+    var sheet = wrap.querySelector('.sheet');
+
+    // sliders
+    Array.prototype.forEach.call(sheet.querySelectorAll('input[type=range]'), function (r) {
+      fill(r);
+      r.addEventListener('input', function () {
+        var key = r.dataset.key;
+        var val = key === 'lineHeight' ? parseFloat(r.value) : parseInt(r.value, 10);
+        S[key] = val;
+        fill(r);
+        var label = sheet.querySelector('[data-val="' + key + '"]');
+        if (label) label.textContent = valueLabel(key, val);
+        TP.saveSettings();
+        onChange(key);
+      });
+    });
+
+    // segmentos
+    Array.prototype.forEach.call(sheet.querySelectorAll('[data-seg]'), function (grp) {
+      grp.addEventListener('click', function (e) {
+        var b = e.target.closest('button[data-val-set]');
+        if (!b || b.disabled) return;
+        var key = grp.dataset.seg;
+        S[key] = b.dataset.valSet;
+        Array.prototype.forEach.call(grp.querySelectorAll('button'), function (x) {
+          x.classList.toggle('is-on', x === b);
+        });
+        TP.saveSettings();
+        onChange(key);
+        if (key === 'voiceMode') TP.openSettings(onChange);  // redesenha a nota/idioma
+      });
+    });
+
+    // interruptores
+    Array.prototype.forEach.call(sheet.querySelectorAll('button[data-toggle]'), function (t) {
+      t.addEventListener('click', function () {
+        var key = t.dataset.toggle;
+        S[key] = !S[key];
+        t.classList.toggle('is-on', S[key]);
+        t.setAttribute('aria-pressed', String(S[key]));
+        TP.saveSettings();
+        onChange(key);
+      });
+    });
+
+    // selects
+    Array.prototype.forEach.call(sheet.querySelectorAll('select[data-select]'), function (sel) {
+      sel.value = S[sel.dataset.select];
+      sel.addEventListener('change', function () {
+        S[sel.dataset.select] = sel.value;
+        TP.saveSettings();
+        onChange(sel.dataset.select);
+      });
+    });
+
+    var reset = sheet.querySelector('#reset-defaults');
+    reset.addEventListener('click', function () {
+      TP.resetSettings();
+      onChange('*');
+      TP.openSettings(onChange);
+      TP.toast('Ajustes restaurados.');
+    });
+
+    return wrap;
+  };
+
+  function fmt2(n) { return String(n.toFixed(2)).replace('.', ','); }
+
+  function valueLabel(key, v) {
+    if (key === 'wpm') return v + ' ppm';
+    if (key === 'lineHeight') return fmt2(v);
+    if (key === 'guidePos') return v + '%';
+    return String(v);
+  }
+
+  function row(label, id, val) {
+    var key = id.replace('-val', '');
+    return '<div class="row"><div class="row-label">' + label + '</div>' +
+           '<div class="row-val" data-val="' + key + '">' + val + '</div></div>';
+  }
+
+  function slider(key, min, max, step, val) {
+    return '<div class="field"><input type="range" data-key="' + key + '" min="' + min +
+           '" max="' + max + '" step="' + step + '" value="' + val + '" aria-label="' + key + '"></div>';
+  }
+
+  function segBtn(key, val, label, on, disabled) {
+    return '<button data-val-set="' + val + '"' +
+           (on ? ' class="is-on"' : '') +
+           (disabled ? ' disabled style="opacity:.35"' : '') +
+           '>' + label + '</button>';
+  }
+
+  function opt(v, label) { return '<option value="' + v + '">' + label + '</option>'; }
+
+  function swatch(name, label) {
+    return '<button class="swatch sw-' + name + (S.theme === name ? ' is-on' : '') +
+      '" data-val-set="' + name + '"><i><span class="lbl">Aa</span>' +
+      '<span class="chk"><b>' + icon('i-check') + '</b></span></i>' +
+      '<span>' + label + '</span></button>';
+  }
+
+  function toggleRow(key, label, hint) {
+    return '<div class="row"><div class="row-label">' + label +
+      (hint ? '<small>' + hint + '</small>' : '') + '</div>' +
+      '<button class="toggle' + (S[key] ? ' is-on' : '') + '" data-toggle="' + key +
+      '" role="switch" aria-pressed="' + !!S[key] + '" aria-label="' + label + '"></button></div>';
+  }
+
+  function voiceNote(mode, noFollow, noMic) {
+    if (noMic) return '<div class="note is-warn">Este navegador não dá acesso ao microfone. Use o app instalado ou uma origem segura (https).</div>';
+    if (noFollow && mode !== 'follow') return '<div class="note">“Seguir o texto” precisa do reconhecimento de fala — disponível no Chrome, no Edge e no Android.</div>';
+    if (mode === 'vad') return '<div class="note">O texto anda enquanto você fala e para quando você silencia. O ritmo continua sendo o que você definiu acima.</div>';
+    if (mode === 'follow') return '<div class="note">O app escuta as palavras, acha onde você está no roteiro e ajusta a velocidade sozinho: acelera se você corre, freia se você se demora.</div>';
+    return '';
+  }
+
+  /* ------------------------------------------------------------------
+     Menu de ações genérico
+     ------------------------------------------------------------------ */
+  TP.openMenu = function (title, subtitle, items) {
+    var html =
+      '<div class="sheet-head"><h2>' + TP.escapeHTML(title) + '</h2>' +
+      (subtitle ? '<p>' + TP.escapeHTML(subtitle) + '</p>' : '') + '</div>' +
+      '<div class="sheet-body"><div class="menu-list">' +
+      items.map(function (it, i) {
+        return '<button class="btn-ghost' + (it.danger ? ' is-danger' : '') +
+          '" data-i="' + i + '">' + icon(it.icon) + '<span>' + TP.escapeHTML(it.label) + '</span></button>';
+      }).join('') +
+      '</div></div>';
+
+    var wrap = open(html);
+    wrap.querySelector('.menu-list').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-i]');
+      if (!b) return;
+      var it = items[+b.dataset.i];
+      close();
+      if (it && it.run) it.run();
+    });
+    return wrap;
+  };
+
+  TP.closeSheet = close;
+  TP.sheetOpen = function () { return !!current; };
+
+})(window.TP);
+
+/* ---- app.js ---- */
+/* app.js — navegação, biblioteca, editor e comandos do prompter */
+(function (TP) {
+  'use strict';
+
+  var S = TP.settings;
+  var P = TP.prompter;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var screens = {
+    home: $('screen-home'),
+    editor: $('screen-editor'),
+    prompter: $('screen-prompter')
+  };
+  var currentScreen = 'home';
+  var editing = null;      // roteiro aberto no editor
+  var presenting = null;   // roteiro em apresentação
+  var wakeLock = null;
+  var hideTimer = 0;
+  var countdownTimer = 0;
+
+  /* ==================================================================
+     navegação
+     ================================================================== */
+  function show(name) {
+    if (currentScreen === 'prompter' && name !== 'prompter') leavePrompter();
+    Object.keys(screens).forEach(function (k) {
+      screens[k].classList.toggle('is-active', k === name);
+    });
+    currentScreen = name;
+    if (name === 'home') renderHome();
+  }
+
+  /* ==================================================================
+     HOME
+     ================================================================== */
+  function greeting() {
+    var h = new Date().getHours();
+    if (h < 5) return 'Boa madrugada';
+    if (h < 12) return 'Bom dia';
+    if (h < 18) return 'Boa tarde';
+    return 'Boa noite';
+  }
+
+  function renderHome() {
+    $('greeting').textContent = greeting();
+
+    var q = TP.normalizeWord($('search').value || '');
+    var list = TP.scripts.all();
+    if (q) {
+      list = list.filter(function (s) {
+        return TP.normalizeWord((s.title || '') + ' ' + (s.text || '')).indexOf(q) >= 0;
+      });
+    }
+    $('list-label').textContent = q ? 'RESULTADOS' : 'RECENTES';
+
+    var box = $('script-list');
+    box.innerHTML = list.map(cardHTML).join('');
+    $('home-empty').hidden = list.length > 0;
+    if (!list.length && q) {
+      $('home-empty').innerHTML = '<strong>Nada encontrado</strong>Tente outra palavra do título ou do texto.';
+    } else if (!list.length) {
+      $('home-empty').innerHTML = '<strong>Nenhum roteiro ainda</strong>Toque em “Novo roteiro” para escrever, colar<br>ou abrir um arquivo de texto.';
+    }
+  }
+
+  function cardHTML(s) {
+    var words = TP.countWords(s.text);
+    var secs = TP.readTime(words, S.wpm);
+    var preview = (s.text || '').replace(/\s+/g, ' ').trim().slice(0, 150) || 'Roteiro vazio';
+    return '<div class="card' + (s.pinned ? ' is-pinned' : '') + '" data-id="' + s.id + '">' +
+      '<button class="card-body" data-act="edit">' +
+        '<span class="card-thumb">' + (s.pinned
+          ? '<svg><use href="#i-pin"/></svg>'
+          : '<svg><use href="#i-video"/></svg>') + '</span>' +
+        '<span class="card-main">' +
+          '<span class="card-title">' + TP.escapeHTML(s.title || 'Roteiro sem título') + '</span>' +
+          '<span class="card-preview">' + TP.escapeHTML(preview) + '</span>' +
+          '<span class="card-meta">' + words + ' palavra' + (words === 1 ? '' : 's') +
+            ' · ' + TP.fmtDuration(secs) + '</span>' +
+        '</span>' +
+      '</button>' +
+      '<button class="card-play" data-act="play" aria-label="Apresentar"><svg><use href="#i-play"/></svg></button>' +
+      '</div>';
+  }
+
+  $('search').addEventListener('input', renderHome);
+
+  var suppressClick = false;
+
+  $('script-list').addEventListener('click', function (e) {
+    if (suppressClick) { suppressClick = false; return; }
+    var card = e.target.closest('.card');
+    if (!card) return;
+    var s = TP.scripts.get(card.dataset.id);
+    if (!s) return;
+    if (e.target.closest('[data-act="play"]')) openPrompter(s);
+    else openEditor(s);   // tocar no roteiro abre o editor
+  });
+
+  // menu do item: pressão longa (toque) ou botão direito (desktop)
+  (function () {
+    var t = 0, moved = false;
+    var list = $('script-list');
+    list.addEventListener('pointerdown', function (e) {
+      var card = e.target.closest('.card');
+      if (!card) return;
+      moved = false;
+      t = setTimeout(function () {
+        if (moved) return;
+        suppressClick = true;          // não deixa o toque longo abrir o roteiro também
+        navigator.vibrate && navigator.vibrate(12);
+        scriptMenu(card.dataset.id);
+      }, 520);
+    });
+    list.addEventListener('pointermove', function () { moved = true; clearTimeout(t); });
+    ['pointerup', 'pointercancel', 'scroll'].forEach(function (ev) {
+      list.addEventListener(ev, function () { clearTimeout(t); }, true);
+    });
+    list.addEventListener('contextmenu', function (e) {
+      var card = e.target.closest('.card');
+      if (!card) return;
+      e.preventDefault();
+      scriptMenu(card.dataset.id);
+    });
+  })();
+
+  function scriptMenu(id) {
+    var s = TP.scripts.get(id);
+    if (!s) return;
+    var words = TP.countWords(s.text);
+    TP.openMenu(s.title || 'Roteiro sem título',
+      words + ' palavras · ' + TP.fmtDuration(TP.readTime(words, S.wpm)), [
+      { icon: 'i-edit', label: 'Editar texto', run: function () { openEditor(s); } },
+      { icon: 'i-play', label: 'Apresentar', run: function () { openPrompter(s); } },
+      { icon: 'i-pin', label: s.pinned ? 'Desafixar' : 'Fixar no topo', run: function () {
+        TP.scripts.update(id, { pinned: !s.pinned }); renderHome();
+      } },
+      { icon: 'i-edit', label: 'Renomear', run: function () {
+        var name = prompt('Nome do roteiro', s.title || '');
+        if (name !== null) { TP.scripts.update(id, { title: name.trim() }); renderHome(); }
+      } },
+      { icon: 'i-copy', label: 'Duplicar', run: function () {
+        TP.scripts.duplicate(id); renderHome(); TP.toast('Roteiro duplicado.');
+      } },
+      { icon: 'i-down', label: 'Baixar como .txt', run: function () { downloadScript(s); } },
+      { icon: 'i-trash', label: 'Excluir roteiro', danger: true, run: function () {
+        if (confirm('Excluir “' + (s.title || 'Roteiro sem título') + '”? Não dá para desfazer.')) {
+          TP.scripts.remove(id); renderHome();
+        }
+      } }
+    ]);
+  }
+
+  /* novo roteiro */
+  $('btn-new').addEventListener('click', function () {
+    TP.openMenu('Novo roteiro', 'Por onde você quer começar?', [
+      { icon: 'i-edit', label: 'Digitar', run: function () { openEditor(null); } },
+      { icon: 'i-copy', label: 'Colar texto', run: pasteNew },
+      { icon: 'i-file', label: 'Abrir um arquivo (.txt, .md)', run: openFile }
+    ]);
+  });
+
+  function pasteNew() {
+    var done = function (text) {
+      var s = TP.scripts.create({ title: '', text: text || '' });
+      openEditor(s);
+      if (!text) TP.toast('Cole o texto no editor (Ctrl+V).');
+    };
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(done).catch(function () { done(''); });
+    } else done('');
+  }
+
+  function openFile() {
+    var inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.txt,.md,.markdown,text/plain,text/markdown';
+    inp.addEventListener('change', function () {
+      var f = inp.files && inp.files[0];
+      if (!f) return;
+      var r = new FileReader();
+      r.onload = function () {
+        var name = f.name.replace(/\.[^.]+$/, '');
+        var s = TP.scripts.create({ title: name, text: String(r.result || '') });
+        openEditor(s);
+      };
+      r.readAsText(f);
+    });
+    inp.click();
+  }
+
+  function downloadScript(s) {
+    TP.saveFile(TP.safeName(s.title, '.txt'), s.text || '');
+  }
+
+  /* backup completo */
+  $('btn-backup').addEventListener('click', function () {
+    TP.openMenu('Seus roteiros', 'Tudo fica salvo neste aparelho.', [
+      { icon: 'i-down', label: 'Exportar backup (.json)', run: function () {
+        TP.saveFile('prompter-backup.json',
+          JSON.stringify({ v: 1, scripts: TP.scripts.all(), settings: S }, null, 2));
+      } },
+      { icon: 'i-file', label: 'Importar backup (.json)', run: function () {
+        var inp = document.createElement('input');
+        inp.type = 'file'; inp.accept = '.json,application/json';
+        inp.addEventListener('change', function () {
+          var f = inp.files && inp.files[0];
+          if (!f) return;
+          var r = new FileReader();
+          r.onload = function () {
+            try {
+              var d = JSON.parse(String(r.result));
+              if (!d || !Array.isArray(d.scripts)) throw new Error('formato');
+              TP.scripts.replaceAll(d.scripts);
+              if (d.settings) { Object.assign(S, d.settings); TP.saveSettings(); }
+              renderHome();
+              TP.toast('Backup restaurado.');
+            } catch (e) { TP.toast('Arquivo de backup inválido.'); }
+          };
+          r.readAsText(f);
+        });
+        inp.click();
+      } }
+    ]);
+  });
+
+  $('btn-home-settings').addEventListener('click', function () {
+    TP.openSettings(function () { renderHome(); });
+  });
+
+  /* ==================================================================
+     EDITOR
+     ================================================================== */
+  function openEditor(s) {
+    editing = s || TP.scripts.create({ title: '', text: '' });
+    $('editor-title').value = editing.title || '';
+    $('editor-text').value = editing.text || '';
+    updateEditorMeta();
+    show('editor');
+    if (!editing.text) setTimeout(function () { $('editor-text').focus(); }, 60);
+  }
+
+  function updateEditorMeta() {
+    var w = TP.countWords($('editor-text').value);
+    $('editor-count').textContent = w + ' palavra' + (w === 1 ? '' : 's');
+    var secs = TP.readTime(w, S.wpm);
+    $('editor-time').textContent = secs < 60 ? '< 1 min' : Math.round(secs / 60) + ' min';
+  }
+
+  var saveT = 0;
+  function scheduleSave() {
+    clearTimeout(saveT);
+    saveT = setTimeout(saveEditor, 400);
+  }
+  function saveEditor() {
+    if (!editing) return;
+    TP.scripts.update(editing.id, {
+      title: $('editor-title').value.trim(),
+      text: $('editor-text').value
+    });
+  }
+
+  $('editor-title').addEventListener('input', scheduleSave);
+  $('editor-text').addEventListener('input', function () { updateEditorMeta(); scheduleSave(); });
+  $('btn-editor-back').addEventListener('click', function () { saveEditor(); show('home'); });
+
+  $('btn-editor-menu').addEventListener('click', function () {
+    saveEditor();
+    var s = editing;
+    TP.openMenu(s.title || 'Roteiro sem título', null, [
+      { icon: 'i-sliders', label: 'Ajustes de leitura', run: function () {
+        TP.openSettings(function () { updateEditorMeta(); });
+      } },
+      { icon: 'i-copy', label: 'Duplicar', run: function () {
+        TP.scripts.duplicate(s.id); TP.toast('Roteiro duplicado.');
+      } },
+      { icon: 'i-down', label: 'Baixar como .txt', run: function () { downloadScript(s); } },
+      { icon: 'i-trash', label: 'Excluir roteiro', danger: true, run: function () {
+        if (confirm('Excluir este roteiro?')) { TP.scripts.remove(s.id); show('home'); }
+      } }
+    ]);
+  });
+
+  $('btn-present').addEventListener('click', function () {
+    saveEditor();
+    openPrompter(TP.scripts.get(editing.id));
+  });
+
+  /* ==================================================================
+     PROMPTER
+     ================================================================== */
+  var nodes = {
+    screen: $('screen-prompter'),
+    stage: $('stage'),
+    inner: $('stage-inner'),
+    doc: $('doc'),
+    guide: $('guide'),
+    mask: $('focus-mask')
+  };
+  P.init(nodes);
+
+  P.onProgress = function (ratio, elapsed, total) {
+    $('progress-fill').style.width = (ratio * 100) + '%';
+    $('progress-knob').style.left = (ratio * 100) + '%';
+    $('t-elapsed').textContent = '−' + TP.fmtClock(total - elapsed);
+    $('t-total').textContent = TP.fmtClock(total);
+  };
+
+  P.onPlayState = function (playing) {
+    $('btn-play').classList.toggle('is-playing', playing);
+    $('btn-play').setAttribute('aria-label', playing ? 'Pausar' : 'Reproduzir');
+    if (playing) armHide(); else showControls();
+  };
+
+  P.onEnd = function () { showControls(); };
+
+  function openPrompter(s) {
+    if (!s) return;
+    presenting = s;
+    $('pr-title').textContent = s.title || 'Roteiro sem título';
+    show('prompter');
+    P.applySettings();
+    P.load(s);
+    requestAnimationFrame(function () { P.measure(); });
+    showControls();
+    startVoice();
+    requestWakeLock();
+    if (S.countdown) countdownThenPlay(); else P.play();
+  }
+
+  function leavePrompter() {
+    clearTimeout(countdownTimer);
+    $('countdown').hidden = true;
+    P.pause();
+    TP.voice.stop();
+    $('voice-chip').hidden = true;
+    releaseWakeLock();
+    if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
+  }
+
+  $('btn-pr-close').addEventListener('click', function () { show('home'); });
+
+  // editar o roteiro sem sair para a biblioteca
+  $('btn-pr-edit').addEventListener('click', function () {
+    P.pause();
+    var s = presenting && TP.scripts.get(presenting.id);
+    if (s) openEditor(s);
+  });
+
+  /* --- contagem regressiva --- */
+  function countdownThenPlay() {
+    var n = 3;
+    var box = $('countdown'), num = $('countdown-n');
+    box.hidden = false;
+    num.textContent = n;
+    (function step() {
+      countdownTimer = setTimeout(function () {
+        n--;
+        if (n <= 0) {
+          box.hidden = true;
+          P.play();
+          return;
+        }
+        num.textContent = n;
+        // reinicia a animação
+        num.style.animation = 'none';
+        void num.offsetWidth;
+        num.style.animation = '';
+        step();
+      }, 950);
+    })();
+  }
+
+  /* --- play/pause e toque no palco --- */
+  $('btn-play').addEventListener('click', function () {
+    if (!$('countdown').hidden) { clearTimeout(countdownTimer); $('countdown').hidden = true; }
+    P.toggle();
+  });
+  $('btn-restart').addEventListener('click', function () { P.restart(); showControls(); });
+
+  $('stage').addEventListener('click', function () {
+    if (!$('countdown').hidden) return;
+    P.toggle();
+    showControls();
+  });
+
+  $('btn-settings').addEventListener('click', function (e) {
+    e.stopPropagation();
+    showControls(true);
+    TP.openSettings(onSettingChange);
+  });
+
+  function onSettingChange(key) {
+    P.applySettings();
+    if (key === 'voiceMode' || key === 'voiceLang' || key === '*') startVoice();
+    if (key === 'wpm') { P.computePace(); }
+    // qualquer mudança de layout exige remedir
+    P.measure();
+    updateSpeedUI();
+    if (currentScreen === 'home') renderHome();
+  }
+
+  /* --- ritmo --- */
+  function setWpm(v) {
+    S.wpm = TP.clamp(Math.round(v / 5) * 5, 60, 280);
+    TP.saveSettings();
+    P.computePace();
+    P.render(true);
+    updateSpeedUI();
+  }
+  function updateSpeedUI() {
+    $('spd-val').textContent = S.wpm + ' ppm';
+    var r = $('spd-range');
+    r.value = S.wpm;
+    r.style.setProperty('--fill', ((S.wpm - 60) / (280 - 60) * 100) + '%');
+  }
+  $('spd-minus').addEventListener('click', function () { setWpm(S.wpm - 5); showControls(); });
+  $('spd-plus').addEventListener('click', function () { setWpm(S.wpm + 5); showControls(); });
+  $('spd-range').addEventListener('input', function () { setWpm(+this.value); showControls(); });
+
+  /* --- barra de progresso --- */
+  (function () {
+    var bar = $('progress'), dragging = false, wasPlaying = false;
+    function ratioFrom(e) {
+      var r = bar.getBoundingClientRect();
+      return TP.clamp((e.clientX - r.left) / r.width, 0, 1);
+    }
+    bar.addEventListener('pointerdown', function (e) {
+      dragging = true;
+      wasPlaying = P.playing;
+      P.pause();
+      bar.setPointerCapture(e.pointerId);
+      P.seekRatio(ratioFrom(e));
+    });
+    bar.addEventListener('pointermove', function (e) {
+      if (dragging) P.seekRatio(ratioFrom(e));
+    });
+    bar.addEventListener('pointerup', function () {
+      if (!dragging) return;
+      dragging = false;
+      showControls();
+      if (wasPlaying) P.play();
+    });
+  })();
+
+  /* --- controles que somem --- */
+  function showControls(sticky) {
+    $('pr-top').classList.remove('is-hidden');
+    $('pr-controls').classList.remove('is-hidden');
+    clearTimeout(hideTimer);
+    if (!sticky && P.playing) armHide();
+  }
+  function armHide() {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () {
+      if (!P.playing || TP.sheetOpen()) return;
+      $('pr-top').classList.add('is-hidden');
+      $('pr-controls').classList.add('is-hidden');
+    }, 2800);
+  }
+
+  /* --- tela cheia / tela acesa --- */
+  $('btn-fullscreen').addEventListener('click', function () {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(function () {
+      TP.toast('Tela cheia indisponível aqui.');
+    });
+  });
+
+  $('btn-wake').addEventListener('click', function () {
+    S.keepAwake = !S.keepAwake;
+    TP.saveSettings();
+    this.classList.toggle('is-on', S.keepAwake);
+    if (S.keepAwake) requestWakeLock(); else releaseWakeLock();
+    TP.toast(S.keepAwake ? 'A tela vai ficar acesa.' : 'A tela pode apagar sozinha.');
+  });
+
+  function requestWakeLock() {
+    if (!S.keepAwake || !navigator.wakeLock || wakeLock) return;
+    navigator.wakeLock.request('screen').then(function (l) {
+      wakeLock = l;
+      l.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () {});
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { P.pause(); }
+    else if (currentScreen === 'prompter') requestWakeLock();
+  });
+
+  /* --- voz --- */
+  function startVoice() {
+    var chip = $('voice-chip');
+    if (currentScreen !== 'prompter' || S.voiceMode === 'off') {
+      TP.voice.stop();
+      chip.hidden = true;
+      return;
+    }
+    var mode = S.voiceMode;
+    if (mode === 'follow' && !TP.voice.supported.recognition) {
+      mode = 'vad';
+      TP.toast('Reconhecimento de fala indisponível: usando detecção de voz.');
+    }
+    chip.hidden = false;
+    $('voice-chip-text').textContent = 'Pedindo o microfone…';
+    TP.voice.start(mode, S.voiceLang).then(function (ok) {
+      if (!ok) {
+        chip.hidden = true;
+        TP.toast(TP.voice.error || 'Microfone indisponível.');
+        S.voiceMode = 'off';
+        TP.saveSettings();
+        return;
+      }
+      $('voice-chip-text').textContent =
+        mode === 'follow' ? 'Seguindo a sua fala' : 'Ouvindo a sua voz';
+    });
+  }
+
+  (function vuLoop() {
+    requestAnimationFrame(vuLoop);
+    if (currentScreen !== 'prompter' || !TP.voice.active) return;
+    var vu = $('vu-bar').parentNode;
+    // sem medidor (o reconhecimento ficou com o microfone), o VU sai de cena
+    vu.hidden = !TP.voice.meter;
+    if (TP.voice.meter) {
+      $('vu-bar').style.width = (TP.voice.level * 100).toFixed(0) + '%';
+      $('voice-chip').classList.toggle('is-live', TP.voice.speaking);
+    }
+  })();
+
+  /* --- teclado / pedal bluetooth --- */
+  document.addEventListener('keydown', function (e) {
+    if (TP.sheetOpen()) return;
+    var tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+    if (currentScreen !== 'prompter') {
+      if (e.key === 'Escape' && currentScreen === 'editor') { saveEditor(); show('home'); }
+      return;
+    }
+    switch (e.key) {
+      case ' ': case 'Spacebar': case 'Enter':
+        e.preventDefault(); P.toggle(); showControls(); break;
+      case 'ArrowUp': case '+': case '=':
+        e.preventDefault(); setWpm(S.wpm + 5); showControls(); break;
+      case 'ArrowDown': case '-': case '_':
+        e.preventDefault(); setWpm(S.wpm - 5); showControls(); break;
+      case 'ArrowRight': case 'PageDown':
+        e.preventDefault(); P.nudgeSeconds(5); showControls(); break;
+      case 'ArrowLeft': case 'PageUp':
+        e.preventDefault(); P.nudgeSeconds(-5); showControls(); break;
+      case 'Home':
+        e.preventDefault(); P.restart(); showControls(); break;
+      case 'e': case 'E':
+        S.mirrorH = !S.mirrorH; TP.saveSettings(); P.applySettings(); showControls(); break;
+      case 'f': case 'F':
+        $('btn-fullscreen').click(); break;
+      case 'Escape':
+        show('home'); break;
+    }
+  });
+
+  /* --- relayout --- */
+  var reT = 0;
+  function relayout() {
+    if (currentScreen !== 'prompter') return;
+    clearTimeout(reT);
+    reT = setTimeout(function () { P.measure(); }, 120);
+  }
+  window.addEventListener('resize', relayout);
+  window.addEventListener('orientationchange', relayout);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', relayout);
+
+  /* ==================================================================
+     bootstrap
+     ================================================================== */
+  updateSpeedUI();
+  renderHome();
+
+
+})(window.TP);
+
+</script>
+</body>
+</html>
